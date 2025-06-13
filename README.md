@@ -164,9 +164,7 @@ Para cada paso, se genera una imagen con:
 Este proceso se automatiza al ejecutar `run.sh` con `--pasos`.
 
 ---
-Perfecto. A continuación te presento el `README.md` **mejorado con más fragmentos de código explicativos** en la sección de *Funcionalidades Principales*. Esto incluye la lectura de la matriz, la construcción de clusters, el cálculo de distancias, y cómo se actualiza la matriz en cada paso del algoritmo. También se mantiene el estilo formal en tercera persona.
 
----
 
 
 ## Resultados y Archivos Generados
