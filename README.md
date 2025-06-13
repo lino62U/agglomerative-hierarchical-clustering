@@ -1,25 +1,14 @@
-Aquí tienes un `README.md` breve y claro que explica cómo ejecutar el script `run.sh`, qué hace y cómo usar la opción `--pasos`:
 
----
-
-````markdown
 # Agrupamiento Jerárquico Aglomerativo
 
 Este proyecto implementa un algoritmo de **clustering jerárquico aglomerativo** en C++, con visualización de resultados paso a paso usando Python.
 
 ## 🔧 Requisitos
 
-- `g++` (C++17 o superior)
-- Python 3 con las siguientes bibliotecas:
-  - `matplotlib`
-  - `numpy`
-  - `scipy`
+- `g++` (compatible con C++17)
+- Python 3
 
-Puedes instalar las dependencias de Python con:
-
-```bash
-pip install matplotlib numpy scipy
-````
+No necesitas instalar manualmente bibliotecas de Python, ya que el script `run.sh` se encarga de crear un entorno virtual (`venv`) y de instalar las dependencias necesarias (`numpy`, `matplotlib`, `scipy`).
 
 ## 🚀 Ejecución del script
 
@@ -27,7 +16,7 @@ Para compilar, ejecutar y graficar los resultados, usa el script:
 
 ```bash
 ./run.sh archivo_entrada.txt [--pasos]
-```
+````
 
 ### 📌 Parámetros
 
@@ -42,23 +31,25 @@ Para compilar, ejecutar y graficar los resultados, usa el script:
 
 Este comando:
 
-1. Limpia las carpetas de imágenes.
-2. Compila el código C++ (`main.cpp`).
-3. Ejecuta el programa con el archivo de entrada.
-4. Genera gráficas por cada método (`single`, `complete`, `average`), incluyendo pasos si se usa `--pasos`.
+1. Verifica o crea un entorno virtual (`venv`).
+2. Instala las dependencias necesarias desde `requirements.txt`.
+3. Limpia las subcarpetas de `img/`.
+4. Compila el código C++ (`main.cpp`).
+5. Ejecuta el programa con el archivo de entrada.
+6. Procesa los resultados para cada método (`single`, `complete`, `average`) y genera gráficas.
+7. (Opcional) Si se usa `--pasos`, también se visualizan las etapas del clustering.
 
 ## 📁 Salida
 
-* Los resultados visuales se guardan en la carpeta `img/`, organizados por método y paso.
+* Las gráficas y visualizaciones se guardan en la carpeta `img/`, organizadas por método y paso.
 
 ## 📝 Notas
 
 * Si el archivo de entrada no existe, el script se detiene con un mensaje de error.
-* Si no se encuentra un archivo `.json` esperado (resultado del programa en C++), el método correspondiente será omitido con advertencia.
+* Si no se encuentra un archivo `.json` generado por el programa en C++, se muestra una advertencia y se omite ese método.
+* Puedes desactivar el entorno virtual al finalizar con:
 
----
-
+```bash
+deactivate
 ```
 
-¿Quieres que también incluya un ejemplo del formato del archivo de entrada (`archivo_entrada.txt`)?
-```
