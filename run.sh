@@ -20,6 +20,26 @@ if [ ! -f "$ENTRADA" ]; then
     exit 1
 fi
 
+# === Paso 0: Crear y activar entorno virtual ===
+echo "[0/5] [INFO] Verificando entorno virtual..."
+if [ ! -d "venv" ]; then
+    echo "[INFO] Creando entorno virtual en ./venv ..."
+    python3 -m venv venv
+fi
+
+echo "[INFO] Activando entorno virtual..."
+source venv/bin/activate
+
+# === Instalar dependencias de Python desde requirements.txt ===
+if [ ! -f "requirements.txt" ]; then
+    echo -e "numpy\nmatplotlib\nscipy" > requirements.txt
+    echo "[INFO] Archivo 'requirements.txt' generado automáticamente."
+fi
+
+echo "[INFO] Instalando dependencias de Python..."
+pip install --quiet --upgrade pip
+pip install --quiet -r requirements.txt
+
 # === Paso 1: Limpieza de carpetas ===
 echo "[1/5] [INFO] Limpiando subcarpetas dentro de 'img/'..."
 mkdir -p img
@@ -30,6 +50,7 @@ echo "[2/5] [INFO] Compilando código C++..."
 g++ -std=c++17 -o main main.cpp
 if [ $? -ne 0 ]; then
     echo "[ERROR] Falló la compilación del código C++."
+    deactivate
     exit 1
 fi
 
@@ -69,3 +90,4 @@ done
 
 # === Paso 5: Finalización ===
 echo "[5/5] [INFO] Proceso finalizado. Métodos procesados: $PROCESADOS de $TOTAL."
+echo "[INFO] Puedes desactivar el entorno virtual con: deactivate"
