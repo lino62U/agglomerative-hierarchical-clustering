@@ -7,31 +7,71 @@
 #include <iomanip>
 #include <algorithm>
 #include <string>
+#include <sstream>
 
 using namespace std;
 
 using Cluster = set<int>;
 using Matriz = vector<vector<double>>;
 
-vector<string> labels = {"A", "B", "C", "D", "E", "F", "G"};
+vector<string> labels;
 
-vector<vector<double>> dist_lower = {
-    {0},
-    {2.15, 0},
-    {0.7, 1.53, 0},
-    {1.07, 1.14, 0.43, 0},
-    {0.85, 1.38, 0.21, 0.29, 0},
-    {1.16, 1.01, 0.55, 0.22, 0.41, 0},
-    {1.56, 2.83, 1.86, 2.04, 2.02, 2.05, 0}
-};
+Matriz leerMatrizDesdeArchivo(const string& archivo) {
+    ifstream in(archivo);
+    string linea;
+    vector<vector<double>> matriz;
+    int fila = 0;
 
-Matriz crearMatriz() {
-    int n = labels.size();
-    Matriz D(n, vector<double>(n, 0));
-    for (int i = 0; i < n; ++i)
-        for (int j = 0; j <= i; ++j)
-            D[i][j] = D[j][i] = dist_lower[i][j];
-    return D;
+    while (getline(in, linea)) {
+        if (linea.empty()) continue;
+
+        stringstream ss(linea);
+        vector<double> filaDatos;
+        string token;
+
+        // Ignorar número de fila
+        ss >> token;
+
+        while (ss >> token) {
+            try {
+                filaDatos.push_back(stod(token));
+            } catch (...) {
+                cerr << "Error al convertir: " << token << " en la fila " << fila << endl;
+                filaDatos.push_back(0.0);
+            }
+        }
+
+        while (filaDatos.size() < fila)
+            filaDatos.push_back(0.0);
+
+        matriz.push_back(filaDatos);
+        fila++;
+    }
+
+    int n = matriz.size();
+    Matriz completa(n, vector<double>(n, 0.0));
+    for (int i = 0; i < n; ++i) {
+        completa[i][i] = 0.0;
+        for (int j = 0; j < i; ++j) {
+            completa[i][j] = matriz[i][j];
+            completa[j][i] = matriz[i][j];
+        }
+    }
+
+    // Generar etiquetas automáticamente (A, B, ..., Z, AA, AB, ...)
+    labels.clear();
+    for (int i = 0; i < n; ++i) {
+        string label;
+        int t = i;
+        while (true) {
+            label = char('A' + (t % 26)) + label;
+            if (t < 26) break;
+            t = t / 26 - 1;
+        }
+        labels.push_back(label);
+    }
+
+    return completa;
 }
 
 double calcularDistancia(const Cluster& a, const Cluster& b, const Matriz& D, const string& metodo) {
@@ -101,13 +141,11 @@ void guardarPasoJSON(ofstream& out, int paso, const vector<Cluster>& clusters, c
     out << "\n";
 }
 
-void clusteringJerarquico(const string& metodo, const string& archivo_salida) {
+void clusteringJerarquico(const string& metodo, const string& archivo_salida, const Matriz& D_original) {
     ofstream out(archivo_salida);
     out << "[\n";
 
-    const Matriz D_original = crearMatriz(); // Nunca se modifica
     Matriz D_actual = D_original;
-
     int n = labels.size();
     vector<Cluster> clusters(n);
     for (int i = 0; i < n; ++i)
@@ -154,17 +192,30 @@ void clusteringJerarquico(const string& metodo, const string& archivo_salida) {
 
         bool es_ultimo = (clusters.size() == 1);
         guardarPasoJSON(out, paso++, clusters, nuevaM, best_dist, nombre_a, nombre_b, es_ultimo);
-
-        D_actual = nuevaM; // Solo se usa para visualización
+        D_actual = nuevaM;
     }
 
     out << "]\n";
     out.close();
 }
 
-int main() {
-    clusteringJerarquico("single", "salida_single.json");
-    clusteringJerarquico("complete", "salida_complete.json");
-    clusteringJerarquico("average", "salida_average.json");
+int main(int argc, char* argv[]) {
+    if (argc < 2) {
+        cerr << "Uso: " << argv[0] << " archivo_entrada.txt\n";
+        return 1;
+    }
+
+    const string archivo_entrada = argv[1];
+    Matriz D = leerMatrizDesdeArchivo(archivo_entrada);
+
+    // Extraer nombre base (sin carpeta ni extensión)
+    string nombre_base = archivo_entrada.substr(archivo_entrada.find_last_of("/\\") + 1);
+    nombre_base = nombre_base.substr(0, nombre_base.find_last_of("."));
+
+    clusteringJerarquico("single", "salida_" + nombre_base + "_single.json", D);
+    clusteringJerarquico("complete", "salida_" + nombre_base + "_complete.json", D);
+    clusteringJerarquico("average", "salida_" + nombre_base + "_average.json", D);
+
+    cout << "Clustering completado. JSONs generados." << endl;
     return 0;
 }
