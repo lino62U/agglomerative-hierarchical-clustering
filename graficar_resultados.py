@@ -1,152 +1,126 @@
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-import numpy as np
 import os
-import re
+import json
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib import colormaps
 
-labels = ["A", "B", "C", "D", "E", "F", "G"]
-label_to_index = {l: i for i, l in enumerate(labels)}
+# === Cargar archivo ===
+with open("salida_single.json") as f:
+    pasos = json.load(f)
 
-def parsear_archivo(ruta):
-    pasos = []
-    with open(ruta, "r") as f:
-        contenido = f.read().strip().split("-----\n")
-    for bloque in contenido:
-        lineas = bloque.strip().splitlines()
-        if not lineas:
-            continue
-        paso = int(lineas[0].split()[1])
-        clusters_linea = lineas[2].strip()
-        clusters = []
-        for grupo in clusters_linea.split():
-            indices = [label_to_index[c] for c in grupo]
-            clusters.append(set(indices))
-        matriz = []
-        i = 4
-        while i < len(lineas) and not lineas[i].startswith("Fusionados:"):
-            fila = lineas[i].strip().split()
-            try:
-                fila_convertida = [float(x.replace("∞", "inf")) for x in fila]
-                matriz.append(fila_convertida)
-            except ValueError:
-                break
-            i += 1
-        fusion = None
-        if i < len(lineas) and "Fusionados:" in lineas[i]:
-            match = re.search(r"Fusionados: (\w+) y (\w+) con distancia: ([\d.]+)", lineas[i])
-            if match:
-                name1, name2 = match.group(1), match.group(2)
-                dist = float(match.group(3))
+# Crear carpeta de salida
+os.makedirs("imagenes", exist_ok=True)
 
-                # Buscar índices reales en clusters
-                def encontrar_idx(nombre):
-                    letras = sorted(nombre)
-                    for idx, cluster in enumerate(clusters):
-                        if sorted([labels[i] for i in cluster]) == letras:
-                            return idx
-                    raise ValueError(f"No se encontró el cluster: {nombre}")
+# === Datos base ===
+labels = [c[0] for c in pasos[0]["clusters"]]
+n = len(labels)
+label_to_idx = {name: i for i, name in enumerate(labels)}
 
-                try:
-                    idx1 = encontrar_idx(name1)
-                    idx2 = encontrar_idx(name2)
-                    fusion = (idx1, idx2, dist)
-                except ValueError as e:
-                    print(f"Error al encontrar fusión: {e}")
+# === Construir matriz original ===
+D = np.full((n, n), np.inf)
+for i in range(n):
+    for j in range(n):
+        if i != j:
+            D[i][j] = pasos[0]["matriz"][i][j]
 
-        pasos.append({
-            "paso": paso,
-            "clusters": clusters,
-            "matriz": np.array(matriz),
-            "fusion": fusion
-        })
-    return pasos
+# === Funciones auxiliares ===
+def calcular_distancia(D, c1, c2, metodo="single"):
+    vals = [D[i][j] for i in c1 for j in c2 if i != j]
+    if metodo == "single":
+        return min(vals)
+    elif metodo == "complete":
+        return max(vals)
+    else:
+        return np.mean(vals)
 
-def dibujar_matriz(ax, M, clusters, fusion=None):
-    names = [''.join(sorted([labels[i] for i in sorted(c)])) for c in clusters]
+def generar_matriz(D, clusters, metodo="single"):
+    size = len(clusters)
+    M = np.zeros((size, size))
+    for i in range(size):
+        for j in range(size):
+            if i != j:
+                M[i][j] = calcular_distancia(D, clusters[i], clusters[j], metodo)
+    return M
+
+def dibujar_matriz(ax, M, clusters):
     ax.clear()
-    im = ax.imshow(M, cmap='viridis', interpolation='nearest')
-    ax.set_xticks(range(len(names)))
-    ax.set_xticklabels(names, rotation=45, fontsize=12)
-    ax.set_yticks(range(len(names)))
-    ax.set_yticklabels(names, fontsize=12)
+    im = ax.imshow(M, cmap="viridis", interpolation="nearest")
+    nombres = [''.join(sorted(labels[i] for i in cluster)) for cluster in clusters]
+    ax.set_xticks(range(len(clusters)))
+    ax.set_yticks(range(len(clusters)))
+    ax.set_xticklabels(nombres, rotation=45, fontsize=10)
+    ax.set_yticklabels(nombres, fontsize=10)
     for i in range(len(M)):
         for j in range(len(M)):
             if i != j:
-                color = "w"
-                if fusion:
-                    fi, fj, _ = fusion
-                    if (fi in clusters[i] and fj in clusters[j]) or (fj in clusters[i] and fi in clusters[j]):
-                        color = "red"
-                ax.text(j, i, f"{M[i,j]:.2f}", ha='center', va='center', color=color, fontsize=10)
-    ax.set_title("Matriz de distancias", fontsize=14)
+                ax.text(j, i, f"{M[i, j]:.2f}", ha="center", va="center", color="w", fontsize=8)
+    ax.set_title("Matriz de distancias")
 
-def dibujar_dendrograma(ax, pasos, hasta_paso):
-    ax.clear()
-    cmap = cm.get_cmap('tab10')
-    ax.set_xlim(-1, len(labels))
-    ax.set_ylim(0, max([p["fusion"][2] for p in pasos if p["fusion"]] + [1]) + 0.5)
-    ax.set_xticks(range(len(labels)))
-    ax.set_xticklabels(labels, fontsize=12)
-    ax.set_ylabel("Distancia")
-    ax.set_title("Dendrograma", fontsize=14)
+# === Estructuras ===
+cluster_id = 0
+clusters = {i: {i} for i in range(n)}         # id → set de índices
+positions = {i: i for i in range(n)}          # posición x
+heights = {i: 0 for i in range(n)}            # altura
+next_id = n
 
-    posiciones = {i: i for i in range(len(labels))}
-    alturas = {i: 0 for i in range(len(labels))}
-    cluster_id = len(labels)
+fusiones = []  # fusiones realizadas (para graficar todo en cada paso)
+colors = colormaps.get_cmap("tab10")
 
-    clusters_ids = [{i} for i in range(len(labels))]
+# === Procesar cada paso ===
+for paso in pasos:
+    paso_id = paso["paso"]
 
-    for idx in range(1, hasta_paso + 1):
-        paso = pasos[idx]
+    # Aplicar fusión nueva SI EXISTE (ANTES de graficar)
+    if "fusion" in paso and paso["fusion"]:
         f = paso["fusion"]
-        if not f:
-            continue
-        i1, i2, dist = f
+        nombres1 = set(f["clusters"][0])
+        nombres2 = set(f["clusters"][1])
+        c1 = next(k for k, v in clusters.items() if v is not None and set(labels[i] for i in v) == nombres1)
+        c2 = next(k for k, v in clusters.items() if v is not None and set(labels[i] for i in v) == nombres2)
 
-        # Buscar los índices en `clusters_ids`
-        a_idx, b_idx = -1, -1
-        for idx_c, cluster in enumerate(clusters_ids):
-            if i1 in cluster:
-                a_idx = idx_c
-            if i2 in cluster:
-                b_idx = idx_c
+        # Guardar fusión para graficar
+        fusiones.append({"c1": c1, "c2": c2, "dist": f["distancia"]})
 
-        if a_idx == -1 or b_idx == -1:
-            continue
+        # Fusionar
+        new_cluster = clusters[c1] | clusters[c2]
+        clusters[next_id] = new_cluster
+        positions[next_id] = (positions[c1] + positions[c2]) / 2
+        heights[next_id] = f["distancia"]
+        clusters[c1] = None
+        clusters[c2] = None
+        next_id += 1
 
-        x1, x2 = posiciones[a_idx], posiciones[b_idx]
-        y1, y2 = alturas[a_idx], alturas[b_idx]
+    # Crear figura
+    fig, (ax_dendo, ax_mat) = plt.subplots(1, 2, figsize=(12, 6), gridspec_kw={"width_ratios": [3, 2]})
+    ax_dendo.set_xlim(-1, n)
+    ax_dendo.set_ylim(0, max([float(p["fusion"]["distancia"]) for p in pasos if "fusion" in p and p["fusion"]] + [0]) + 1)
+    ax_dendo.set_xticks(range(n))
+    ax_dendo.set_xticklabels(labels, fontsize=10)
+    ax_dendo.set_ylabel("Distancia")
+    ax_dendo.set_title(f"Dendrograma - Paso {paso_id}")
+
+    # Dibujar TODAS las fusiones acumuladas
+    for idx, fusion in enumerate(fusiones):
+        c1 = fusion["c1"]
+        c2 = fusion["c2"]
+        dist = fusion["dist"]
+        x1, x2 = positions[c1], positions[c2]
+        y1, y2 = heights[c1], heights[c2]
         new_x = (x1 + x2) / 2
-        new_y = dist
+        col = colors(idx % 10)
+        ax_dendo.plot([x1, x1], [y1, dist], '-', color=col, lw=2)
+        ax_dendo.plot([x2, x2], [y2, dist], '-', color=col, lw=2)
+        ax_dendo.plot([x1, x2], [dist, dist], '-', color=col, lw=2)
+        ax_dendo.text(new_x + 0.05, dist, f"{dist:.2f}", fontsize=9, color=col)
 
-        c = cmap(idx % 10)
-        ax.plot([x1, x1], [y1, new_y], '-', color=c, lw=2)
-        ax.plot([x2, x2], [y2, new_y], '-', color=c, lw=2)
-        ax.plot([x1, x2], [new_y, new_y], '-', color=c, lw=2)
-        ax.text(new_x + 0.05, new_y, f"{dist:.2f}", fontsize=10, color=c)
+    # Dibujar matriz parcial
+    clusters_vivos = [v for v in clusters.values() if v is not None]
+    M = generar_matriz(D, clusters_vivos, metodo="single")
+    dibujar_matriz(ax_mat, M, clusters_vivos)
 
-        # Actualizar estructuras
-        clusters_ids.append(clusters_ids[a_idx] | clusters_ids[b_idx])
-        posiciones[len(clusters_ids)-1] = new_x
-        alturas[len(clusters_ids)-1] = new_y
+    # Guardar imagen
+    plt.tight_layout()
+    plt.savefig(f"imagenes/paso_{paso_id:02d}_parcial.png")
+    plt.close()
 
-        for idx_r in sorted([a_idx, b_idx], reverse=True):
-            del clusters_ids[idx_r]
-            posiciones.pop(idx_r)
-            alturas.pop(idx_r)
-
-def graficar_pasos(pasos, carpeta):
-    os.makedirs(carpeta, exist_ok=True)
-    for paso in pasos:
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6), gridspec_kw={'width_ratios': [3, 2]})
-        dibujar_dendrograma(ax1, pasos, paso["paso"])
-        dibujar_matriz(ax2, paso["matriz"], paso["clusters"], paso.get("fusion"))
-        fig.suptitle(f"Paso {paso['paso']}", fontsize=16)
-        fig.tight_layout(pad=3.0)
-        plt.savefig(f"{carpeta}/paso_{paso['paso']:02d}.jpg", dpi=150)
-        plt.close()
-
-# Ejecutar
-archivo = "salida_single.txt"
-pasos = parsear_archivo(archivo)
-graficar_pasos(pasos, "graficos_single")
+print("✅ Dendrogramas parciales con todas las fusiones previas generados.")
