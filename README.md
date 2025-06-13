@@ -1,5 +1,3 @@
-tengo esto queiro qu elo converitas en formato latex y deme todo en codig latex
-
 # Agrupamiento Jerárquico Aglomerativo (Clustering)
 
 Este proyecto implementa un sistema de **agrupamiento jerárquico aglomerativo** (Hierarchical Agglomerative Clustering, HAC) a partir de una **matriz de distancias** definida entre un conjunto de elementos. La agrupación se realiza de forma iterativa, fusionando en cada paso los clusters más cercanos según alguna de las siguientes estrategias clásicas:
