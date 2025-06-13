@@ -96,6 +96,34 @@ def process_json(file_path, method, final_only=False):
     if final_only:
         output_path = os.path.join(output_folder, f"dendrogram_final_{method}.png")
         draw_final_dendrogram(original_matrix, labels, method, output_path)
+
+        # Graficar la matriz inicial
+        # Graficar matriz de distancias inicial
+        n_labels = len(labels)
+        fig_size = max(6, 0.6 * n_labels)  # Ajusta tamaño base dinámicamente
+        fig, ax = plt.subplots(figsize=(fig_size, fig_size))
+        clusters_init = [{i} for i in range(n)]
+        
+        def draw_distance_matrix_initial(ax, matrix, clusters, labels):
+            ax.clear()
+            ax.imshow(matrix, cmap="viridis", interpolation="nearest")
+            names = [''.join(sorted(labels[i] for i in cluster)) for cluster in clusters]
+            ax.set_xticks(range(len(clusters)))
+            ax.set_yticks(range(len(clusters)))
+            ax.set_xticklabels(names, rotation=90 if len(names) > 10 else 45, fontsize=9)
+            ax.set_yticklabels(names, fontsize=9)
+            for i in range(len(matrix)):
+                for j in range(len(matrix)):
+                    if i != j and not np.isinf(matrix[i, j]):
+                        ax.text(j, i, f"{matrix[i, j]:.1f}", ha="center", va="center", color="w", fontsize=7)
+            ax.set_title("Initial Distance Matrix")
+
+        draw_distance_matrix_initial(ax, original_matrix, clusters_init, labels)
+        matrix_output = os.path.join(output_folder, f"matriz_inicial_{method}.png")
+        plt.tight_layout()
+        plt.savefig(matrix_output)
+        plt.close()
+        print(f"✅ Initial distance matrix saved to {matrix_output}")
         return
 
     clusters = {i: {i} for i in range(n)}
